@@ -9,7 +9,6 @@ from __future__ import print_function
 import xlrd
 
 def read_xls(name, display):
-    fname = name + '.xls'
     
     # Open the workbook
     xl_workbook = xlrd.open_workbook(fname)

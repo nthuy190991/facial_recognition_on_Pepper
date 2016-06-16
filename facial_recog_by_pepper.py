@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-import os
+import os, sys
 import cv2
 import time
 from read_xls import read_xls
@@ -13,7 +13,7 @@ from binascii import b2a_hex
 from watson_developer_cloud import NaturalLanguageClassifierV1
 import face_api
 import emotion_api
-import qi
+import qi # Aldebaran Python SDK
 
 """
 Replace French accents in texts
@@ -42,7 +42,6 @@ def retrieve_face_emotion_att(clientId):
 
     global global_vars
     global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
-    #data = global_var['binary_data']
 
     # Face API
     # faceResult = face_api.faceDetect(None, None, data)
@@ -257,40 +256,6 @@ def flask_init():
         temp        = global_var['todo']
         global_var['todo'] = ""
         return temp, 200
-
-    # @app.route('/image', methods=['POST'])
-    # def getImage():
-    #
-    #     clientId        = request.get_json(force=True)["client_id"]
-    #     image           = request.get_json(force=True)["img"]
-    #     image           = image.split(",")[1]
-    #     binary_data     = a2b_base64(image)
-    #     data8uint       = np.fromstring(binary_data, np.uint8) # Convert bytestream to an unsigned int array
-    #     frameFromHTML   = cv2.imdecode(data8uint, cv2.IMREAD_COLOR)
-    #
-    #     global global_vars
-    #     global_var  = (item for item in global_vars if item["clientId"] == str(clientId)).next()
-    #     global_var['binary_data']   = binary_data
-    #     global_var['frameFromHTML'] = frameFromHTML
-    #
-    #     return "",200
-
-	# @app.errorhandler(404)
-	# def page_not_found(error):
-    	# return 'This page does not exist', 404
-
-#    # TODO: Send back result to client
-#    @app.route('/video_feed')
-#    def video_feed():
-#        _, jpeg = cv2.imencode('.jpg', frame)
-#        return Response(b'--frame\r\n'
-#           b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes()
-#           + b'\r\n\r\n', mimetype='multipart/x-mixed-replace; boundary=frame')
-
-
-def flaskThread():
-    port = int(os.getenv('PORT', '8000'))
-    app.run(host='0.0.0.0', port = port, threaded=True)
 
 """
 Pepper
@@ -520,7 +485,7 @@ def video_streaming(clientId):
         cv2.imshow('ClientId: ' + str(clientId) + ' - Video streaming', frame)
 
     cv2.destroyWindow('ClientId: ' + str(clientId) + ' - Video streaming')
-    #quit_program()
+
 
 """
 Put Texts on frame to display on streaming video at a predefined position (row,column)
@@ -1052,20 +1017,12 @@ def quit_program(clientId):
     global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
 
     global_var['flag_quit'] = 0 # Turn it on to execute just the yes_no question and bye-bye
-#    quit_opt = yes_or_no(clientId, 'Exit', 'Voulez-vous vraiment quitter ?', 3) # This wont executed if quit by Esc key
     cv2.destroyWindow('ClientId: ' + str(clientId) + ' - Video streaming')
 
     #chrome_tts(clientId, u"Merci de votre utilisation. Au revoir, à bientôt")
     app_pepper.pepper_tts(clientId, u"Merci de votre utilisation. Au revoir, à bientôt")
     global_var['flag_quit'] = 1
 
-#    if (quit_opt == 0):
-#        print 'Relance programme...'
-#        import facial_recog_server
-#        reload(facial_recog_server) # Reload program
-#    elif (quit_opt == 1):
-#        print u'Session a terminée, fermer programme...'
-        #sys.exit() # Supplementary to quit program more correctly
 
 """
 Definition of used yes-no questions in program
@@ -1112,7 +1069,6 @@ Yes/No question as an asking/answering by dialogue
 def yes_or_no(clientId, title, message, type_message_box):
     global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
     if (not global_var['flag_quit']): # Put in If-condition to allow interrupt when Esc is pressed
-        #print 'not good'
         resp, ouinon = chrome_yes_or_no(clientId, message)
         return resp
     else:
@@ -1175,7 +1131,6 @@ def global_var_init(clientId):
 
     textFromHTML  = ""
     frameFromHTML = 0
-    binary_data   = 0
 
     tb_nb_times_recog = np.empty(len(list_nom))
     tb_nb_times_recog.fill(0) # initialize with all zeros
@@ -1202,7 +1157,6 @@ def global_var_init(clientId):
                                 ('tts', tts),
                                 ('textFromHTML', textFromHTML),
                                 ('frameFromHTML', frameFromHTML),
-                                ('binary_data', binary_data),
                                 ('tb_nb_times_recog', tb_nb_times_recog),
                                 ('nom', nom)
                                 ]))
@@ -1247,5 +1201,5 @@ natural_language_classifier = NaturalLanguageClassifierV1(
 global_vars = []
 
 flask_init()
-port = int(os.getenv('PORT', '8000'))
+port = int(os.getenv('PORT', '9099'))
 app.run(host = '0.0.0.0', port = port, threaded = True)
