@@ -205,14 +205,17 @@ def flask_init():
 
     @app.route('/')
     def render_hmtl():
-        return render_template('index.html')
+        return render_template('index_old.html')
 
     @app.route('/start/<clientId>', methods=['POST'])
     def onStart(clientId):
         global_var_init(clientId)
         # global global_vars
         # global_var  = (item for item in global_vars if item["clientId"] == str(clientId)).next()
+        global flag_pepper_start
+
         flag_pepper_start = False
+        print flag_pepper_start
 
         # Pepper
         thread_pepper = Thread(target=run_app_pepper, args=(clientId,), name='pepper_'+str(clientId))
@@ -222,6 +225,8 @@ def flask_init():
         #time.sleep(1)
         while (not flag_pepper_start):#global_var['flag_pepper_start']:
             time.sleep(0.5)
+            print flag_pepper_start
+
         thread_program = Thread(target = run_program, args= (clientId,), name = 'thread_prog_'+clientId)
         thread_program.start()
         return "", 200
@@ -262,7 +267,7 @@ Pepper
 """
 class Pepper(object):
     def __init__(self):
-        self.ip = "10.65.34.43"
+        self.ip = "10.69.128.84"
         self.port = 9559
         self.session = qi.Session()
         try:
@@ -288,21 +293,21 @@ class Pepper(object):
             self.ALVideoDevice.releaseImage(self.handle)
             data_pepper = self.ALVideoDevice.getImageRemote(self.handle)
             width, height, nbLayers = data_pepper[0:3] # from Documentation
-            # image_data = np.zeros((len(data_pepper[6]),1)) # data[6]: array of height*width*nbLayes containing image data
-            # data_bin = b2a_hex(str(data_pepper[6]))
-            # for k in range(0,len(data_pepper[6])):
-            #     image_data[k] = int(data_bin[2*k:2*k+2], 16)
-            # image_reshape = np.reshape(image_data, (nbLayers, width, height), order='F')
 
-            data_uint8 = np.fromstring(data_pepper[6], np.uint8)
-            image_reshape = np.reshape(data_uint8, (nbLayers, width, height), order='F')
+            image_data = np.zeros((len(data_pepper[6]),1)) # data[6]: array of height*width*nbLayes containing image data
+            data_bin = b2a_hex(str(data_pepper[6]))
+            for k in range(0,len(data_pepper[6])):
+                image_data[k] = int(data_bin[2*k:2*k+2], 16)
+            image_reshape = np.reshape(image_data, (nbLayers, width, height), order='F')
+
+            #TODO: re-check when new Pepper comes
+            # data_uint8 = np.fromstring(data_pepper[6], np.uint8)
+            # image_reshape = np.reshape(data_uint8, (nbLayers, width, height), order='F')
 
             imgRGB = np.dstack((image_reshape[2].T,image_reshape[1].T,image_reshape[0].T))
             cv2.imwrite('output.png', imgRGB)
             frame = cv2.imread('output.png')
-            # frame_dst = rotateImage(frame)
             global_var['frameFromHTML'] = frame
-            # cv2.imwrite('output2.png', frame_dst)
 
     def pepper_tts(self, clientId, text):
         global global_vars
@@ -318,12 +323,13 @@ class Pepper(object):
         time.sleep(timeNeeded)
 
 def run_app_pepper(clientId):
-    global app_pepper
+    global app_pepper, flag_pepper_start
     # global global_vars
     # global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
     app_pepper = Pepper()
     # global_var['flag_pepper_start']= True
     flag_pepper_start = True
+    print flag_pepper_start
     app_pepper.run_camera(clientId)
 
 
@@ -395,8 +401,11 @@ def chrome_yes_or_no(clientId, question):
     if (response == '@'):
         result, response = chrome_yes_or_no(clientId, u"Je ne vous entends pas, veuillez répéter")
 
-    classes = natural_language_classifier.classify('2374f9x68-nlc-1265', response)
-    responseYesOrNo = classes["top_class"]
+   if (response=='oui' or response=='non'):
+        responseYesOrNo = response
+    else:
+        classes = natural_language_classifier.classify('2374f9x68-nlc-1265', response)
+        responseYesOrNo = classes["top_class"]
 
     if not(global_var['flag_quit']):
         if (responseYesOrNo=='oui'):
@@ -405,9 +414,9 @@ def chrome_yes_or_no(clientId, question):
             result = 0
         elif (responseYesOrNo=='not_relevant'):
             result, response = chrome_yes_or_no(clientId, u"Votre réponse n'est pas pertinente, veuillez ré-répondre")
-    else:
-        result   = -1
-        responseYesOrNo = ''
+    # else:
+    #     result   = -1
+    #     responseYesOrNo = ''
     return result, response
 
 
@@ -456,11 +465,11 @@ def video_streaming(clientId):
                 global_var['image_save'] = gray[y0 : y0 + h0, x0 : x0 + w0]
                 nbr_predicted, conf      = recognizer.predict(global_var['image_save']) # Predict function
 
-                global_var['nom'] = list_nom[nbr_predicted-1] # Get resulting name
+                nom = list_nom[nbr_predicted-1] # Get resulting name
 
                 if (conf < thres): # if recognizing distance is less than the predefined threshold -> FACE RECOGNIZED
                     if not global_var['flag_disable_detection']:
-                        txt = global_var['nom'] + ', distance: ' + str(conf)
+                        txt = nom + ', distance: ' + str(conf)
                         message_xy(frame, txt, x0, y0-5, 'w', 1)
 
                     global_var['tb_nb_times_recog'][nbr_predicted-1] = global_var['tb_nb_times_recog'][nbr_predicted-1] + 1 # Increase nb of recognize times
@@ -943,15 +952,15 @@ def run_program(clientId):
                         if (global_var['flag_ask']):# and (not flag_quit)):
                             resp_deja_photos = deja_photos(clientId) # Ask user if he has already had a database of face photos
 
-                            if (resp_deja_photos==-1):
-                                global_var['flag_ask'] = 0
+                            # if (resp_deja_photos==-1):
+                            #     global_var['flag_ask'] = 0
 
                             elif (resp_deja_photos==1): # User has a database of photos
                                 global_var['flag_enable_recog'] = 0 # Disable recognition in order not to recognize while re-identifying
                                 global_var['flag_ask'] = 0
 
                                 name0 = global_var['nom']   # Save the recognition result, which is wrong, in order to compare later
-                                nb_time_max = 2             # Number of times to retry recognize
+                                nb_time_max = 5             # Number of times to retry recognize
 
                                 thread_reidentification = Thread(target = re_identification, args = (clientId, nb_time_max, name0), name = 'thread_reidentification_'+clientId)
                                 thread_reidentification.start()
@@ -1086,10 +1095,11 @@ def simple_message(clientId, title, message):
 """
 Calculating Frame-per-second parameter
 """
-def count_fps():
-    video = cv2.VideoCapture(-1)
-    fps   = video.get(cv2.cv.CV_CAP_PROP_FPS);
-    return fps
+def count_fps(): #TODO
+    # video = cv2.VideoCapture(-1)
+    # fps   = video.get(cv2.cv.CV_CAP_PROP_FPS);
+    # return fps
+    return 'N/A'
 
 
 """
@@ -1099,7 +1109,7 @@ def global_var_init(clientId):
 
     global global_vars
 
-    # Messages to appear on streaming video (at line 3, 4, 5)
+    # Messages to appear on streaming video (at line 3, 4, 5) and attributes
     text    = ''
     text2   = ''
     text3   = ''
@@ -1174,7 +1184,7 @@ imgPath      = "face_database/" # path to database of faces
 suffix       = '.png' # image file extention
 thres        = 80     # Distance threshold for recognition
 wait_time    = 2.5    # Time needed to wait for recognition
-nb_max_times = 10     # Maximum number of times of good recognition counted in 3 seconds (manually determined, and depends on camera)
+nb_max_times = 6     # Maximum number of times of good recognition counted in 3 seconds (manually determined, and depends on camera)
 nb_img_max   = 5      # Number of photos needs to be taken for each user
 xls_filename = 'formation.xls' # Excel file contains Formation information
 

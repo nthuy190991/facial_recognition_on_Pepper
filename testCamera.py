@@ -39,7 +39,7 @@ def display_video():
 class App(object):
     def __init__(self):
 
-        self.ip = "10.65.34.43"
+        self.ip = "10.69.128.84"
         self.port = 9559
 
         self.session = qi.Session()
@@ -51,22 +51,32 @@ class App(object):
                     "Please check your script arguments. Run with -h option for help.")
             sys.exit(1)
 
-        self.ALVideoDevice = self.session.service('ALVideoDevice')
+        # self.ALVideoDevice = self.session.service('ALVideoDevice')
 
-        self.ALVideoDevice.unsubscribe("CameraTop_0")
-        self.ALVideoDevice.setParameter(0, 14, 1)
-        self.handle = self.ALVideoDevice.subscribeCamera("CameraTop", 0, 1, 11, 5)
+        # self.ALVideoDevice.unsubscribe("CameraTop_0")
+        # self.ALVideoDevice.setParameter(0, 14, 1)
+        # self.handle = self.ALVideoDevice.subscribeCamera("CameraTop", 0, 1, 11, 5)
+
+        self.ALTabletService = self.session.service("ALTabletService")
 
 
     def run(self):
-        global data
+        # global data
 
-        thread_video = Thread(target=display_video)
-        thread_video.start()
-        while True:
-            self.ALVideoDevice.releaseImage(self.handle)
-            #print(self.ALVideoDevice.getImageRemote(self.handle))
-            data = self.ALVideoDevice.getImageRemote(self.handle)
+        # thread_video = Thread(target=display_video)
+        # thread_video.start()
+        # while True:
+        #     self.ALVideoDevice.releaseImage(self.handle)
+        #     #print(self.ALVideoDevice.getImageRemote(self.handle))
+        #     data = self.ALVideoDevice.getImageRemote(self.handle)
+            
+        self.show_images()
+
+    def show_images(self):
+        self.ALTabletService.showImage('http://192.18.0.1/img/milky-way-galaxy-wallpaper-hd.jpg')
+        time.sleep(30)
+        # Hide the web view
+        self.ALTabletService.hideImage()
 
 data = None
 

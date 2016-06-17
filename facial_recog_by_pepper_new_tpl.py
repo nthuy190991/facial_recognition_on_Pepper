@@ -1,13 +1,19 @@
 # -*- coding: utf-8 -*-
+"""
+Created on Thu Jun 16 09:43:38 2016
+
+@author: thnguyen
+"""
 
 import numpy as np
 import os, sys
 import cv2
 import time
 from read_xls import read_xls
+#from edit_xls import edit_xls
 import xlrd
 from threading import Thread
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, send_from_directory
 import operator
 from binascii import b2a_hex
 from watson_developer_cloud import NaturalLanguageClassifierV1
@@ -42,6 +48,9 @@ def retrieve_face_emotion_att(clientId):
 
     global global_vars
     global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
+
+    chrome_server2client(clientId, 'START')
+    app_pepper.pepper_tts(clientId, 'Veuillez patienter pendant quelques secondes...')
 
     # Face API
     faceResult = face_api.faceDetect(None, 'output.png', None)
@@ -85,6 +94,8 @@ def retrieve_face_emotion_att(clientId):
         global_var['age']     = tb_age[ind_max]
         global_var['gender']  = tb_gender[ind_max]
         global_var['emo']     = tb_emo[ind_max]
+
+        chrome_server2client(clientId, 'DONE')
 
         return tb_age, tb_gender, tb_glasses, tb_emo
     else:
@@ -192,209 +203,10 @@ def get_images_and_labels(path, list_nom):
     return images, labels
 
 
-"""
-==============================================================================
-Flask Initialization
-==============================================================================
-"""
-def flask_init():
-    global app
-
-    app  = Flask(__name__, static_url_path='')
-
-    @app.route('/')
-    def render_hmtl():
-        return render_template('index_new.html')
-
-    @app.route('/css/<path:filename>')
-    def sendCSS(filename):
-        return send_from_directory(os.path.join(os.getcwd(), 'templates', 'css'), filename)
-
-    @app.route('/javascript/<path:filename>')
-    def sendJavascript(filename):
-        return send_from_directory(os.path.join(os.getcwd(), 'templates', 'javascript'), filename)
-
-    @app.route('/images/<path:filename>')
-    def sendImages(filename):
-        return send_from_directory(os.path.join(os.getcwd(), 'templates', 'images'), filename)
-
-    @app.route('/chat', methods=['POST'])
-    def getResponseFromHTML():
-        clientId = request.args.get('id')
-        text     = request.args.get('text')
-        if (text=='START'):
-            global_var_init(clientId)
-            flag_pepper_start = False
-
-            # Pepper
-            thread_pepper = Thread(target=run_app_pepper, args=(clientId,), name='pepper_'+str(clientId))
-            thread_pepper.start()
-
-            cv2.destroyAllWindows()
-            
-            while (not flag_pepper_start):
-                time.sleep(0.5)
-
-            # Run program
-            thread_program = Thread(target = run_program, args= (clientId,), name = 'thread_prog_'+clientId)
-            thread_program.start()
-        else:
-            global global_vars
-            global_var  = (item for item in global_vars if item["clientId"] == str(clientId)).next()
-            global_var['respFromHTML'] = text
-        return "", 200
-
-    @app.route('/startListening', methods=['POST'])
-    def onstartListening():
-        clientId = request.args.get('id')
-        global global_vars
-        global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
-        global_var['startListening'] = True
-        return "", 200
-
-    @app.route('/wait', methods=['POST'])
-    def waitForServerInput():
-        clientId = request.args.get('id')
-        #print clientId
-        time.sleep(0.5)
-        global global_vars
-        global_var  = (item for item in global_vars if item["clientId"] == str(clientId)).next()
-        temp        = global_var['sendToHTML']
-        global_var['sendToHTML'] = ""
-        return temp, 200
-
-
-    # app  = Flask(__name__)
-
-    # @app.route('/')
-    # def render_hmtl():
-    #     return render_template('index.html')
-
-    # @app.route('/start/<clientId>', methods=['POST'])
-    # def onStart(clientId):
-    #     global_var_init(clientId)
-    #     # global global_vars
-    #     # global_var  = (item for item in global_vars if item["clientId"] == str(clientId)).next()
-    #     flag_pepper_start = False
-
-    #     # Pepper
-    #     thread_pepper = Thread(target=run_app_pepper, args=(clientId,), name='pepper_'+str(clientId))
-    #     thread_pepper.start()
-
-    #     # run_program
-    #     #time.sleep(1)
-    #     while (not flag_pepper_start):#global_var['flag_pepper_start']:
-    #         time.sleep(0.5)
-    #     thread_program = Thread(target = run_program, args= (clientId,), name = 'thread_prog_'+clientId)
-    #     thread_program.start()
-    #     return "", 200
-
-    # @app.route('/StT/<data>', methods=['POST'])
-    # def runSpeechToText(data):
-    #     clientId = data[0:5]
-    #     text     = data[6:]
-
-    #     global global_vars
-    #     global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
-    #     global_var['stt'] = text
-    #     return "", 200
-
-    # @app.route('/respFromHTML/<data>', methods=['POST'])
-    # def getrespFromHTML(data):
-    #     clientId = data[0:5]
-    #     text     = data[6:]
-
-    #     global global_vars
-    #     global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
-    #     global_var['respFromHTML'] = text
-    #     #print 'respFromHTML', clientId, text
-    #     return "", 200
-
-    # @app.route('/longpolling/<clientId>', methods=['POST'])
-    # def longPolling(clientId):
-    #     time.sleep(0.5)
-
-    #     global global_vars
-    #     global_var  = (item for item in global_vars if item["clientId"] == str(clientId)).next()
-    #     temp        = global_var['todo']
-    #     global_var['todo'] = ""
-    #     return temp, 200
-
-
-"""
-Pepper
-"""
-class Pepper(object):
-    def __init__(self):
-        self.ip = "10.65.34.43"
-        self.port = 9559
-        self.session = qi.Session()
-        try:
-            self.session.connect("tcp://" + self.ip + ":" + str(self.port))
-        except RuntimeError:
-            print ( "Can't connect to Naoqi at ip \"" + self.ip + "\" on port " + str(self.port) +".\n"
-                    "Please check your script arguments. Run with -h option for help.")
-            sys.exit(1)
-
-        self.ALTextToSpeech = self.session.service('ALTextToSpeech')
-        self.ALTextToSpeech.setLanguage('French')
-        self.ALTextToSpeech.setParameter('speed', 110)
-
-        self.ALVideoDevice = self.session.service('ALVideoDevice')
-        self.ALVideoDevice.unsubscribe("CameraTop_0")
-        self.ALVideoDevice.setParameter(0, 14, 2)
-        self.handle = self.ALVideoDevice.subscribeCamera("CameraTop", 0, 2, 11, 5)
-
-    def run_camera(self, clientId):
-        global global_vars
-        global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
-        while True:
-            self.ALVideoDevice.releaseImage(self.handle)
-            data_pepper = self.ALVideoDevice.getImageRemote(self.handle)
-            width, height, nbLayers = data_pepper[0:3] # from Documentation
-
-            # image_data = np.zeros((len(data_pepper[6]),1)) # data[6]: array of height*width*nbLayes containing image data
-            # data_bin = b2a_hex(str(data_pepper[6]))
-            # for k in range(0,len(data_pepper[6])):
-            #     image_data[k] = int(data_bin[2*k:2*k+2], 16)
-            # image_reshape = np.reshape(image_data, (nbLayers, width, height), order='F')
-
-            data_uint8 = np.fromstring(data_pepper[6], np.uint8)
-            image_reshape = np.reshape(data_uint8, (nbLayers, width, height), order='F')
-
-            imgRGB = np.dstack((image_reshape[2].T,image_reshape[1].T,image_reshape[0].T))
-            cv2.imwrite('output.png', imgRGB)
-            frame = cv2.imread('output.png')
-            # frame_dst = rotateImage(frame)
-            global_var['frameFromHTML'] = frame
-            # cv2.imwrite('output2.png', frame_dst)
-
-    def pepper_tts(self, clientId, text):
-        global global_vars
-        global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
-        global_var['todo']  = "TTS " + str(clientId) + " " + text
-        self.ALTextToSpeech.say(text)
-        global_var['tts']  = text
-
-        # Calculate the time needed to wait, until the TTS is finished
-        text2 = str_replace_chars(text, [' ?',' !',' :',' ;'], ['?','!',':',';'])
-        nbOfWords  = len(text2.split())
-        timeNeeded = float(nbOfWords)/120*60 # Average words-per-min = 130
-        time.sleep(timeNeeded)
-
-def run_app_pepper(clientId):
-    global app_pepper
-    # global global_vars
-    # global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
-    app_pepper = Pepper()
-    # global_var['flag_pepper_start']= True
-    flag_pepper_start = True
-    app_pepper.run_camera(clientId)
-
 
 """
 ==============================================================================
-Dialogue from Chrome
+Dialogue from Chrome and Pepper
 ==============================================================================
 """
 
@@ -418,21 +230,22 @@ def chrome_client2server(clientId): # Speech-to-Text
 
     while (global_var['respFromHTML'] == ''):
         pass
-        if (time.time()-t0>=7 and global_var['respFromHTML'] == ''): # Time outs after 7 secs
+        if (time.time()-t0>=10 and global_var['respFromHTML'] == ''): # Time outs after 7 secs
             global_var['respFromHTML'] = '@' # Silence
 
-    resp = global_var['respFromHTML'] # Get answer from userInput during 3 seconds
+    resp = global_var['respFromHTML']
+    time.sleep(0.1)
     global_var['respFromHTML'] = '' # Rewrite '' after getting result
     return resp
 
 def chrome_yes_or_no(clientId, question):
 
+    global global_vars
+    global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
+
     #chrome_server2client(clientId, question) # Ask a question
     app_pepper.pepper_tts(clientId, question) # Pepper asks a question
     response = chrome_client2server(clientId) # Wait for an answer
-
-    global global_vars
-    global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
 
     if (response == '@'):
         result, response = chrome_yes_or_no(clientId, u"Je ne vous entends pas, veuillez répéter")
@@ -469,7 +282,7 @@ def video_streaming(clientId):
 
     while True:
         frame = global_var['frameFromHTML'] # Get frame from HTML
-        #frame = cv2.flip(frame, 1) # Vertically flip frame
+        frame = cv2.flip(frame, 1) # Vertically flip frame
         global_var['key'] = cv2.waitKey(1)
         if (global_var['key'] == 27 or global_var['key2'] == 27): # wait for ESC key to exit
             cv2.destroyWindow('ClientId: ' + str(clientId) + ' - Video streaming')
@@ -501,11 +314,11 @@ def video_streaming(clientId):
                 global_var['image_save'] = gray[y0 : y0 + h0, x0 : x0 + w0]
                 nbr_predicted, conf      = recognizer.predict(global_var['image_save']) # Predict function
 
-                global_var['nom'] = list_nom[nbr_predicted-1] # Get resulting name
+                nom = list_nom[nbr_predicted-1] # Get resulting name
 
                 if (conf < thres): # if recognizing distance is less than the predefined threshold -> FACE RECOGNIZED
                     if not global_var['flag_disable_detection']:
-                        txt = global_var['nom'] + ', distance: ' + str(conf)
+                        txt = nom + ', distance: ' + str(conf)
                         message_xy(frame, txt, x0, y0-5, 'w', 1)
 
                     global_var['tb_nb_times_recog'][nbr_predicted-1] = global_var['tb_nb_times_recog'][nbr_predicted-1] + 1 # Increase nb of recognize times
@@ -595,8 +408,8 @@ def go_to_formation(clientId, xls_filename, name):
 
             ind = mail_list.index(mail) # Find user in xls file based on his/her mail
             date = xlrd.xldate_as_tuple(tb_formation[ind][tb_formation[0][:].index('Date du jour')],0)
-            global_var['text2'] = "Bienvenue a la formation de "+str(tb_formation[ind][tb_formation[0][:].index('Prenom')])+" "+str(tb_formation[ind][tb_formation[0][:].index('Nom')] + ' !')
-            global_var['text3'] = "Vous avez un cours de " + str(tb_formation[ind][tb_formation[0][:].index('Formation')]) + ", dans la salle " + str(tb_formation[ind][tb_formation[0][:].index('Salle')]) + ", a partir du " + "{}/{}/{}".format(str(date[2]), str(date[1]),str(date[0]))
+            global_var['text2'] = u"Bienvenue à la formation de "+str(tb_formation[ind][tb_formation[0][:].index('Prenom')])+" "+str(tb_formation[ind][tb_formation[0][:].index('Nom')] + ' !')
+            global_var['text3'] = "Vous avez un cours de " + str(tb_formation[ind][tb_formation[0][:].index('Formation')]) + ", dans la salle " + str(tb_formation[ind][tb_formation[0][:].index('Salle')]) + u", à partir du " + "{}/{}/{}".format(str(date[2]), str(date[1]),str(date[0]))
 
         simple_message(clientId, global_var['text2'] + ' ' + global_var['text3'])
         # return global_var['text'], global_var['text2'], global_var['text3']
@@ -679,7 +492,7 @@ def take_photos(clientId, step_time, flag_show_photos):
 
     if os.path.exists(imgPath+str(name)+".0"+suffix):
         print u"Les fichiers avec le nom " + str(name) + u" existent déjà"
-        b = yes_or_no(clientId,"Existence de fichiers", u"Les fichiers avec le nom " + str(name) + u" existent déjà, écraser ces fichiers ?", 3)
+        b = yes_or_no(clientId, u"Les fichiers avec le nom " + str(name) + u" existent déjà, écraser ces fichiers ?", 3)
         if (b==1):
             for image_del_path in image_to_paths:
                 os.remove(image_del_path)
@@ -765,7 +578,7 @@ def retake_validate_photos(clientId, step_time, flag_show_photos, imgPath, name)
             cv2.imwrite(image_path, global_var['image_save'])
             print "Enregistrer photo " + image_path + ", nb de photos prises : " + nb[j]
 
-        a = yes_or_no(clientId, 'Nouvelles photos', u'Reprise de photos finie, souhaitez-vous réviser vos photos ?', 4)
+        a = yes_or_no(clientId, u'Reprise de photos finie, souhaitez-vous réviser vos photos ?', 4)
         if (a==1):
             thread_show_photos2 = Thread(target = show_photos, args = (clientId, imgPath, name), name = 'thread_show_photos2_'+clientId)
             thread_show_photos2.start()
@@ -816,12 +629,12 @@ Re-identification: when a user is not recognized or not correctly recognized
 """
 def re_identification(clientId, nb_time_max, name0):
 
-    simple_message(clientId, u'Veuillez rapprocher vers la camera, ou bouger votre tête')
+    simple_message(clientId, u'Veuillez rapprocher vers la camera, ou bouger votre tête...')
 
     global global_vars
     global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
 
-    tb_old_name    = np.chararray(shape=(nb_time_max+1), itemsize=10) # Old recognition results, which are wrong
+    tb_old_name    = np.chararray(shape=(nb_time_max+1), itemsize=10) # All of the old recognition results, which are wrong
     tb_old_name[:] = ''
     tb_old_name[0] = name0
 
@@ -830,38 +643,26 @@ def re_identification(clientId, nb_time_max, name0):
     global_var['flag_reidentify']   = 1
     global_var['flag_ask'] = 0
 
-    #    a = 0
     while (nb_time < nb_time_max):
         time.sleep(wait_time) # wait until after the re-identification is done
-        
         name1 = global_var['nom'] # New result
-#        print name1
-#        print global_var['flag_recog']
-#        print str(np.all(tb_old_name != name1))
-        
+
         if np.all(tb_old_name != name1) and global_var['flag_recog']:
             print 'Essaie ' + str(nb_time+1) + ': reconnu comme ' + str(name1)
-#            print global_var['tb_nb_times_recog']
-#            print list_nom[np.argmax(global_var['tb_nb_times_recog'])]
 
-#            if (a==0):
-#                a = 1 # Small trick to not to ask twice (not start two Speech Recognizer) at the same time
             resp = validate_recognition(clientId, str(name1))
             print resp
             if (resp == 1):
-#                a = 0
                 result = 1
                 name = name1
                 break
             else:
                 result = 0
-#                a = 0
                 nb_time += 1
                 tb_old_name[nb_time] = name1
 
         elif (not global_var['flag_recog']):
             print 'Essaie ' + str(nb_time+1) + ': personne inconnue'
-#            a = 0
             result = 0
             nb_time += 1
 
@@ -871,10 +672,10 @@ def re_identification(clientId, nb_time_max, name0):
         global_var['flag_wrong_recog']  = 0
 
         get_face_emotion_api_results(clientId)
-
-        global_var['text'], global_var['text2'], global_var['text3'] = go_to_formation(clientId, xls_filename, name)
-
-        return_to_recog(clientId) # Return to recognition program immediately or 20 seconds before returning
+        time.sleep(2)
+        # global_var['text'], global_var['text2'], global_var['text3'] = go_to_formation(clientId, xls_filename, name)
+        go_to_formation(clientId, xls_filename, name)
+        # return_to_recog(clientId) # Return to recognition program immediately or 20 seconds before returning
 
     else: # Two time failed to recognized
         global_var['flag_enable_recog'] = 0 # Disable recognition when two tries have failed
@@ -940,7 +741,7 @@ def run_program(clientId):
             """
             if not (global_var['flag_quit']): #TODO: new
                 global_var['key2'] = cv2.waitKey(1)
-                if (global_var['key2'] == 27):# or HTML_refresh:
+                if (global_var['key2'] == 27):
                     break
                 elapsed_time = time.time() - start_time
                 if ((elapsed_time > wait_time) and global_var['flag_enable_recog']): # Identify after each 3 seconds
@@ -962,7 +763,7 @@ def run_program(clientId):
 
                     else: # If the number of times recognized anyone from database is too low
                         global_var['flag_recog'] = 0 # Unknown Person
-                        #nom = '' # XXX: new: à vérifier
+                        global_var['nom']   = '@' # '' is for unknown person
                         global_var['text']  = 'Personne inconnue'
                         global_var['text2'] = ''
                         global_var['text3'] = ''
@@ -1013,7 +814,7 @@ def run_program(clientId):
                     if ((global_var['flag_recog'] and global_var['flag_wrong_recog']) or (not global_var['flag_recog'])): # Not recognized or not correctly recognized
                         if (global_var['flag_ask']):# and (not flag_quit)):
 
-                            global_var['flag_enable_recog'] = 0 # Disable recognition in order not to recognize while taking photos
+                            global_var['flag_enable_recog'] = 0 # Disable recognition in order not to recognize while re-identifying or taking photos
 
                             resp_deja_photos = deja_photos(clientId) # Ask user if he has already had a database of face photos
 
@@ -1025,7 +826,7 @@ def run_program(clientId):
                                 global_var['flag_ask'] = 0
 
                                 name0 = global_var['nom']   # Save the recognition result, which is wrong, in order to compare later
-                                nb_time_max = 3             # Number of times to retry recognize
+                                nb_time_max = 5             # Number of times to retry recognize
 
                                 thread_reidentification = Thread(target = re_identification, args = (clientId, nb_time_max, name0), name = 'thread_reidentification_'+clientId)
                                 thread_reidentification.start()
@@ -1166,9 +967,10 @@ def simple_message(clientId, message):
 Calculating Frame-per-second parameter
 """
 def count_fps():
-    video = cv2.VideoCapture(-1)
-    fps   = video.get(cv2.cv.CV_CAP_PROP_FPS);
-    return fps
+    # video = cv2.VideoCapture(-1)
+    # fps   = video.get(cv2.cv.CV_CAP_PROP_FPS);
+    # return fps
+    return 'N/A'
 
 
 """
@@ -1178,7 +980,7 @@ def global_var_init(clientId):
 
     global global_vars
 
-    # Messages to appear on streaming video (at line 3, 4, 5)
+    # Messages to appear on streaming video (at line 3, 4, 5) and attributes
     text    = ''
     text2   = ''
     text3   = ''
@@ -1195,9 +997,6 @@ def global_var_init(clientId):
     flag_quit         = 0
     flag_ask          = 0 # Flag if it is necessary to ask 'etes vous dans ma base ou pas ?'
     flag_reidentify   = 0
-
-    # Pepper
-    # flag_pepper_start = False
 
     # Initialisation global variables
     image_save = 0
@@ -1240,6 +1039,154 @@ def global_var_init(clientId):
 
 """
 ==============================================================================
+Flask Initialization
+==============================================================================
+"""
+def flask_init():
+    global app
+
+    app  = Flask(__name__, static_url_path='')
+
+    @app.route('/')
+    def render_hmtl():
+        return render_template('index_pepper.html')
+
+    @app.route('/css/<path:filename>')
+    def sendCSS(filename):
+        return send_from_directory(os.path.join(os.getcwd(), 'templates', 'css'), filename)
+
+    @app.route('/javascript/<path:filename>')
+    def sendJavascript(filename):
+        return send_from_directory(os.path.join(os.getcwd(), 'templates', 'javascript'), filename)
+
+    @app.route('/images/<path:filename>')
+    def sendImages(filename):
+        return send_from_directory(os.path.join(os.getcwd(), 'templates', 'images'), filename)
+
+    @app.route('/chat', methods=['POST'])
+    def getResponseFromHTML():
+        clientId = request.args.get('id')
+        text     = request.args.get('text')
+        if (text=='START'): # Start a conversation
+            global_var_init(clientId)
+            global flag_pepper_start
+            flag_pepper_start = False
+
+            # Pepper
+            thread_pepper = Thread(target=run_app_pepper, args=(clientId,), name='pepper_'+str(clientId))
+            thread_pepper.start()
+
+            cv2.destroyAllWindows()
+
+            while (not flag_pepper_start):
+                time.sleep(0.5)
+                print flag_pepper_start
+
+            # Run program
+            thread_program = Thread(target = run_program, args= (clientId,), name = 'thread_prog_'+clientId)
+            thread_program.start()
+
+        else: # Continue the conversation
+            global global_vars
+            global_var  = (item for item in global_vars if item["clientId"] == str(clientId)).next()
+            global_var['respFromHTML'] = text
+        return "", 200
+
+    @app.route('/startListening', methods=['POST'])
+    def onstartListening():
+        clientId = request.args.get('id')
+        global global_vars
+        global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
+        global_var['startListening'] = True
+        return "", 200
+
+    @app.route('/wait', methods=['POST'])
+    def waitForServerInput():
+        clientId = request.args.get('id')
+        time.sleep(0.5)
+        global global_vars
+        global_var  = (item for item in global_vars if item["clientId"] == str(clientId)).next()
+        temp        = global_var['sendToHTML']
+        global_var['sendToHTML'] = ""
+        return temp, 200
+
+"""
+Pepper
+"""
+class Pepper(object):
+    def __init__(self):
+        self.ip = "10.69.128.84"
+        self.port = 9559
+        self.session = qi.Session()
+        try:
+            self.session.connect("tcp://" + self.ip + ":" + str(self.port))
+        except RuntimeError:
+            print ( "Can't connect to Naoqi at ip \"" + self.ip + "\" on port " + str(self.port) +".\n"
+                    "Please check your script arguments. Run with -h option for help.")
+            sys.exit(1)
+
+        self.ALTextToSpeech = self.session.service('ALTextToSpeech')
+        self.ALTextToSpeech.setLanguage('French')
+        self.ALTextToSpeech.setParameter('speed', 110)
+
+        self.ALVideoDevice = self.session.service('ALVideoDevice')
+        self.ALVideoDevice.unsubscribe("CameraTop_0")
+        self.ALVideoDevice.setParameter(0, 14, 2)
+        self.handle = self.ALVideoDevice.subscribeCamera("CameraTop", 0, 2, 11, 5)
+
+        self.ALTabletService = self.session.service("ALTabletService")
+
+    def run_camera(self, clientId):
+        global global_vars
+        global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
+        while True:
+            self.ALVideoDevice.releaseImage(self.handle)
+            data_pepper = self.ALVideoDevice.getImageRemote(self.handle)
+            width, height, nbLayers = data_pepper[0:3] # from Documentation
+
+            image_data = np.zeros((len(data_pepper[6]),1)) # data[6]: array of height*width*nbLayes containing image data
+            data_bin = b2a_hex(str(data_pepper[6]))
+            for k in range(0,len(data_pepper[6])):
+                image_data[k] = int(data_bin[2*k:2*k+2], 16)
+            image_reshape = np.reshape(image_data, (nbLayers, width, height), order='F')
+
+            # data_uint8 = np.fromstring(data_pepper[6], np.uint8)
+            # image_reshape = np.reshape(data_uint8, (nbLayers, width, height), order='F')
+
+            imgRGB = np.dstack((image_reshape[2].T,image_reshape[1].T,image_reshape[0].T))
+            cv2.imwrite('output.png', imgRGB)
+            frame = cv2.imread('output.png')
+            global_var['frameFromHTML'] = frame
+
+    def pepper_tts(self, clientId, text):
+        global global_vars
+        global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
+        self.ALTextToSpeech.say(text)
+        chrome_server2client(clientId, text)
+
+        # Calculate the time needed to wait, until the TTS is finished
+        text2 = str_replace_chars(text, [' ?',' !',' :',' ;'], ['?','!',':',';'])
+        nbOfWords  = len(text2.split())
+        timeNeeded = float(nbOfWords)/120*60 # Average words-per-min = 130
+        time.sleep(timeNeeded)
+
+    def pepper_show_images(self, clientId, imgName): #TODO: new function of showing images on Tablet
+        self.ALTabletService.showImage("http://"+IP_address+"/face_database/"+imgName+suffix)
+        time.sleep(3)
+        self.ALTabletService.hideImage()
+
+def run_app_pepper(clientId):
+    global app_pepper, flag_pepper_start
+    # global global_vars
+    # global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
+    app_pepper = Pepper()
+    # global_var['flag_pepper_start']= True
+    flag_pepper_start = True
+    app_pepper.run_camera(clientId)
+
+
+"""
+==============================================================================
     MAIN PROGRAM
 ==============================================================================
 """
@@ -1250,7 +1197,7 @@ imgPath      = "face_database/" # path to database of faces
 suffix       = '.png' # image file extention
 thres        = 80     # Distance threshold for recognition
 wait_time    = 2.5    # Time needed to wait for recognition
-nb_max_times = 20     # Maximum number of times of good recognition counted in 3 seconds (manually determined, and depends on camera)
+nb_max_times = 6     # Maximum number of times of good recognition counted in 3 seconds (manually determined, and depends on camera)
 nb_img_max   = 5      # Number of photos needs to be taken for each user
 xls_filename = 'formation.xls' # Excel file contains Formation information
 
