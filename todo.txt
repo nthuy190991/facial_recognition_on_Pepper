@@ -1,0 +1,8 @@
+Pepper dev:
+- Develop a technique to retrieve image more quickly
+
+Working with Tablet
+- Display resulting images
+- Render template to tablet (must write a new js code)
+
+Test simulate robot
