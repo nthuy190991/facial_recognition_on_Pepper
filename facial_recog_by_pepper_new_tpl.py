@@ -35,7 +35,7 @@ def replace_accents2(text):
     chars_replace = ['E','a', 'a', 'a', 'a', 'a', 'a', 'ae', 'c', 'e', 'e', 'e', 'e', 'i', 'i', 'i', 'i', 'o', 'o', 'o', 'o', 'o', 'u', 'u', 'u', 'u']
     text2 = str_replace_chars(text, chars_origine, chars_replace)
     return text2
-    
+
 """
 Replace characters in a string
 """
@@ -423,7 +423,7 @@ def go_to_formation(clientId, xls_filename, name):
         time.sleep(1)
 
         link='<a href="http://centre-formation-orange.mybluemix.net">ici</a>'
-        simple_message(clientId, u"SILENT Cliquez " + link + u" pour accéder à la page Formation pour plus d'information")
+        chrome_server2client(clientId, u"SILENT Cliquez " + link + u" pour accéder à la page Formation pour plus d'information")
         time.sleep(0.5)
 
         return_to_recog(clientId) # Return to recognition program immediately or 20 seconds before returning
@@ -1169,8 +1169,7 @@ class Pepper(object):
             global_var['frameFromHTML'] = frame
 
     def pepper_tts(self, clientId, text):
-        global global_vars
-        global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
+
         self.ALTextToSpeech.say(text)
         chrome_server2client(clientId, text)
 
