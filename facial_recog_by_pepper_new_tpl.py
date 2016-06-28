@@ -25,14 +25,23 @@ import qi # Aldebaran Python SDK
 Replace French accents in texts
 """
 def replace_accents(text):
-    chars_origine = ['Ê','à', 'á', 'â', 'ã', 'ä', 'å', 'æ', 'ç', 'è', 'é', 'ê', 'ë', 'ì', 'í', 'î', 'ï', 'ò', 'ó', 'ô', 'õ', 'ö', 'ù', 'ú', 'û', 'ü']
-    chars_replace  = ['\xC3','\xE0', '\xE1', '\xE2', '\xE3', '\xE4', '\xE5', '\xE6', '\xE7', '\xE8', '\xE9', '\xEA', '\xEB', '\xEC', '\xED', '\xEE', '\xEF', '\xF2', '\xF3', '\xF4', '\xF5', '\xF6', '\xF9', '\xFA', '\xFB', '\xFC']
+    chars_origine = ['Ê','à', 'á', 'â', 'ã', 'ä', 'å', 'æ', 'ç', 'è', 'é',
+                     'ê', 'ë', 'ì', 'í', 'î', 'ï', 'ò', 'ó', 'ô', 'õ', 'ö',
+                     'ù', 'ú', 'û', 'ü']
+    chars_replace = ['\xC3','\xE0', '\xE1', '\xE2', '\xE3', '\xE4', '\xE5',
+                      '\xE6', '\xE7', '\xE8', '\xE9', '\xEA', '\xEB', '\xEC',
+                      '\xED', '\xEE', '\xEF', '\xF2', '\xF3', '\xF4', '\xF5',
+                      '\xF6', '\xF9', '\xFA', '\xFB', '\xFC']
     text2 = str_replace_chars(text, chars_origine, chars_replace)
     return text2
 
 def replace_accents2(text):
-    chars_origine = ['Ê','à', 'á', 'â', 'ã', 'ä', 'å', 'æ', 'ç', 'è', 'é', 'ê', 'ë', 'ì', 'í', 'î', 'ï', 'ò', 'ó', 'ô', 'õ', 'ö', 'ù', 'ú', 'û', 'ü']
-    chars_replace = ['E','a', 'a', 'a', 'a', 'a', 'a', 'ae', 'c', 'e', 'e', 'e', 'e', 'i', 'i', 'i', 'i', 'o', 'o', 'o', 'o', 'o', 'u', 'u', 'u', 'u']
+    chars_origine = ['Ê', 'à', 'á', 'â', 'ã', 'ä', 'å', 'æ', 'ç', 'è', 'é',
+                     'ê', 'ë', 'ì', 'í', 'î', 'ï', 'ò', 'ó', 'ô', 'õ', 'ö',
+                     'ù', 'ú', 'û', 'ü']
+    chars_replace = ['E', 'a', 'a', 'a', 'a', 'a', 'a', 'ae', 'c', 'e', 'e',
+                     'e', 'e', 'i', 'i', 'i', 'i', 'o', 'o', 'o', 'o', 'o',
+                     'u', 'u', 'u', 'u']
     text2 = str_replace_chars(text, chars_origine, chars_replace)
     return text2
 
@@ -566,6 +575,19 @@ def retake_validate_photos(clientId, step_time, flag_show_photos, imgPath, name)
             for i in range(int(nb[0]), int(nb[2])+1):
                 nb2 = nb2 + str(i)
             nb = nb2
+        elif (nb=='*' or nb=='all'):
+            nb=''
+            for j in range(0, nb_img_max):
+                nb = nb+str(j+1)
+        elif any(nb[idx] in a for idx in range(0, len(nb))): # If there is any number in string
+            nb2 = ''
+            for j in range(0, len(nb)):
+                if (nb[j] in a):
+                    nb2 = nb2 + nb[j]
+            nb = nb2
+        else:
+            print 'Fatal error: invalid response'
+            nb = ''
 
         nb = str_replace_chars(nb, [',',';','.',' '], ['','','',''])
 
@@ -700,7 +722,7 @@ def re_identification(clientId, nb_time_max, name0):
         # global_var['flag_reidentify']   = 0
         simple_message(clientId, u'Désolé je vous reconnaît pas, veuillez me donner votre identifiant')
 
-        name = ask_name(clientId, 1)
+        name = ask_name(clientId, 0)
         if os.path.exists(imgPath+str(name)+".0"+suffix): # Assume that user's face-database exists if the photo 0.png exists
             simple_message(clientId, 'Bonjour '+ str(name)+', je vous conseille de changer vos photos')
             flag_show_photos = 1
@@ -713,7 +735,7 @@ def re_identification(clientId, nb_time_max, name0):
             thread_retake_validate_photos2 = Thread(target = retake_validate_photos, args = (clientId, step_time, flag_show_photos, imgPath, name), name = 'thread_retake_validate_photos2_'+clientId)
             thread_retake_validate_photos2.start()
         else:
-            simple_message(clientId, "Malheureusement, les photos correspondant au nom "+ str(name) +" n'existent pas. Je vous conseille de reprendre vos photos")
+            simple_message(clientId, "Malheureusement, les photos correspondant au nom " + str(name) + " n'existent pas. Je vous conseille de reprendre vos photos")
 
             time.sleep(1)
             global_var['flag_take_photo']  = 1  # Enable photo taking
