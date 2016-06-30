@@ -5,8 +5,8 @@ Created on Thu Jun 16 09:43:38 2016
 @author: thnguyen
 """
 
-import numpy as np
 import os, sys
+import numpy as np
 import cv2
 import time
 from read_xls import read_xls
@@ -245,7 +245,7 @@ def chrome_client2server(clientId): # Speech-to-Text
 
     while (global_var['respFromHTML'] == ''):
         pass
-        if (time.time()-t0>=10 and global_var['respFromHTML'] == ''): # Time outs after 7 secs
+        if (time.time()-t0>=7 and global_var['respFromHTML'] == ''): # Time outs after 7 secs
             global_var['respFromHTML'] = '@' # Silence
 
     resp = global_var['respFromHTML']
@@ -313,36 +313,39 @@ def video_streaming(clientId):
         """
         Recognition part
         """
-        for (x, y, w, h) in faces:
-            if (len(faces)>1): # Consider only the biggest face appears in the video
-                w_vect = faces.T[2,:]
-                h_vect = faces.T[3,:]
-                x0, y0, w0, h0 = faces[np.argmax(w_vect*h_vect)]
-            elif (len(faces)==1): # If there is only one face
-                x0, y0, w0, h0 = faces[0]
+        # for (x, y, w, h) in faces:
+        if (len(faces)>1): # Consider only the biggest face appears in the video
+            w_vect = faces.T[2,:]
+            h_vect = faces.T[3,:]
+            x0, y0, w0, h0 = faces[np.argmax(w_vect*h_vect)]
+        elif (len(faces)==1): # If there is only one face
+            x0, y0, w0, h0 = faces[0]
 
-            if not global_var['flag_disable_detection']:
-                cv2.rectangle(frame, (x0, y0), (x0+w0, y0+h0), (25, 199, 247), 1) # Draw a rectangle around the biggest face
-                #cv2.rectangle(frame, (x, y), (x+w, y+h), (25, 199, 247), 1) # Draw a rectangle around the faces
+        if not global_var['flag_disable_detection']:
+            cv2.rectangle(frame, (x0, y0), (x0+w0, y0+h0), (25, 199, 247), 1) # Draw a rectangle around the biggest face
+            #cv2.rectangle(frame, (x, y), (x+w, y+h), (25, 199, 247), 1) # Draw a rectangle around the faces
 
-            if (len(faces)>=1):
-                global_var['image_save'] = gray[y0 : y0 + h0, x0 : x0 + w0]
-                nbr_predicted, conf      = recognizer.predict(global_var['image_save']) # Predict function
+        if (len(faces)>=1):
+            global_var['image_save'] = gray[y0 : y0 + h0, x0 : x0 + w0]
+            nbr_predicted, conf      = recognizer.predict(global_var['image_save']) # Predict function
 
-                nom = list_nom[nbr_predicted-1] # Get resulting name
+            nom = list_nom[nbr_predicted-1] # Get resulting name
 
-                if (conf < thres): # if recognizing distance is less than the predefined threshold -> FACE RECOGNIZED
-                    if not global_var['flag_disable_detection']:
-                        txt = nom + ', distance: ' + str(conf)
-                        message_xy(frame, txt, x0, y0-5, 'w', 1)
+            if (conf < thres): # if recognizing distance is less than the predefined threshold -> FACE RECOGNIZED
+                if not global_var['flag_disable_detection']:
+                    txt = nom + ', distance: ' + str(conf)[0:5]
+                    message_xy(frame, txt, x0, y0-5, 'w', 1)
 
-                    global_var['tb_nb_times_recog'][nbr_predicted-1] = global_var['tb_nb_times_recog'][nbr_predicted-1] + 1 # Increase nb of recognize times
+                    nom = ''
+                    txt = ''  
 
-                message_xy(frame, global_var['age'],    x0+w0, y0, 'b', 1)
-                message_xy(frame, global_var['gender'], x0+w0, y0+10, 'b', 1)
-                message_xy(frame, global_var['emo'],    x0+w0, y0+20, 'b', 1)
+                global_var['tb_nb_times_recog'][nbr_predicted-1] = global_var['tb_nb_times_recog'][nbr_predicted-1] + 1 # Increase nb of recognize times
 
-        # End of For-loop
+            message_xy(frame, global_var['age'],    x0+w0, y0, 'b', 1)
+            message_xy(frame, global_var['gender'], x0+w0, y0+10, 'b', 1)
+            message_xy(frame, global_var['emo'],    x0+w0, y0+20, 'b', 1)
+
+        ## End of For-loop
 
         # Texts to display on video
         count_time = time.time() - time_origine
@@ -394,7 +397,7 @@ def message_xy(frame, text, x, y, color, thickness):
 
 
 """
-Display Formation Panel for a recognized or username-known user
+Display Formation info for a recognized or username-known user
 """
 def go_to_formation(clientId, xls_filename, name):
     resp = ask_go_to_formation(clientId)
@@ -415,8 +418,8 @@ def go_to_formation(clientId, xls_filename, name):
         global_var['text'] = "Bonjour " + str(name)
 
         if (mail == '.'):
-            global_var['text2'] = "Votre information n'est pas disponible !"
-            global_var['text3'] = "Veuillez contacter contact@orange.com"
+            text2 = "Votre information n'est pas disponible !"
+            text3 = "Veuillez contacter contact@orange.com"
         else:
             mail_idx = tb_formation[0][:].index('Mail')
 
@@ -429,14 +432,15 @@ def go_to_formation(clientId, xls_filename, name):
             date = xlrd.xldate_as_tuple(tb_formation[ind][tb_formation[0][:].index('Date du jour')],0)
             text2 = "Bienvenue à la formation de "+str(tb_formation[ind][tb_formation[0][:].index('Prenom')])+" "+str(tb_formation[ind][tb_formation[0][:].index('Nom')] + ' !')
             text3 = "Vous avez un cours de " + str(tb_formation[ind][tb_formation[0][:].index('Formation')]) + ", dans la salle " + str(tb_formation[ind][tb_formation[0][:].index('Salle')]) + ", à partir du " + "{}/{}/{}".format(str(date[2]), str(date[1]),str(date[0]))
-            global_var['text2'] = replace_accents2(text2)
-            global_var['text3'] = replace_accents2(text3)
+
+        global_var['text2'] = replace_accents2(text2)
+        global_var['text3'] = replace_accents2(text3)
 
         simple_message(clientId, text2 + ' ' + text3)
         time.sleep(1)
 
         link='<a href="http://centre-formation-orange.mybluemix.net">ici</a>'
-        chrome_server2client(clientId, u"SILENT Cliquez " + link + u" pour accéder à la page Formation pour plus d'information")
+        chrome_server2client(clientId, u"Cliquez " + link + u" pour accéder à la page Formation pour plus d'information")
         time.sleep(0.5)
 
         cv2.waitKey(5000)
@@ -463,24 +467,22 @@ def return_to_recog(clientId):
         global_var['flag_ask']                = 1
         global_var['flag_reidentify']         = 0
 
-
-
 """
 Find valid username
 """
 def reform_username(name):
 
-    if (name=='huy' or name=='huy_new'):
+    if (name=='huy' or name=='GGQN0871'):
         firstname    = 'thanhhuy'
         lastname     = 'nguyen'
         email_suffix = '@orange.com'
 
-    elif (name=='cleblain'):
+    elif (name=='cleblain' or name=='JLTS5253'):
         firstname    = 'christian'
         lastname     = 'leblainvaux'
         email_suffix = '@orange.com'
 
-    elif (name=='catherine' or name=='lemarquis'):
+    elif (name=='catherine' or name=='lemarquis' or name=='ECPI6335'):
         firstname    = 'catherine'
         lastname     = 'lemarquis'
         email_suffix = '@orange.com'
@@ -515,7 +517,7 @@ def take_photos(clientId, step_time, flag_show_photos):
 
     if os.path.exists(imgPath+str(name)+".0"+suffix):
         print u"Les fichiers avec le nom " + str(name) + u" existent déjà"
-        b = yes_or_no(clientId, u"Les fichiers avec le nom " + str(name) + u" existent déjà, écraser ces fichiers ?", 3)
+        b = yes_or_no(clientId, u"Les fichiers avec le nom " + str(name) + u" existent déjà, écraser ces fichiers ?")
         if (b==1):
             for image_del_path in image_to_paths:
                 os.remove(image_del_path)
@@ -537,7 +539,7 @@ def take_photos(clientId, step_time, flag_show_photos):
         nb_img += 1
         time.sleep(step_time)
 
-    # Display photos that has just been taken
+    # Display photos that have just been taken
     if flag_show_photos:
         thread_show_photos = Thread(target = show_photos, args = (clientId, imgPath, name), name = 'thread_show_photos_'+clientId)
         thread_show_photos.start()
@@ -545,7 +547,7 @@ def take_photos(clientId, step_time, flag_show_photos):
     time.sleep(0.5)
 
     # Allow to retake photos and validate after finish taking
-    thread_retake_validate_photos = Thread(target = retake_validate_photos, args = (clientId, step_time, flag_show_photos, imgPath, name), name = 'thread_retake_validate_photos_'+clientId)
+    thread_retake_validate_photos = Thread(target = retake_validate_photos, args = (clientId, step_time, flag_show_photos, imgPath, name), name = 'thread_retake_validate_photos_' + clientId)
     thread_retake_validate_photos.start()
 
 
@@ -614,7 +616,7 @@ def retake_validate_photos(clientId, step_time, flag_show_photos, imgPath, name)
             cv2.imwrite(image_path, global_var['image_save'])
             print "Enregistrer photo " + image_path + ", nb de photos prises : " + nb[j]
 
-        a = yes_or_no(clientId, u'Reprise de photos finie, souhaitez-vous réviser vos photos ?', 4)
+        a = yes_or_no(clientId, u'Reprise de photos finie, souhaitez-vous réviser vos photos ?')
         if (a==1):
             thread_show_photos2 = Thread(target = show_photos, args = (clientId, imgPath, name), name = 'thread_show_photos2_'+clientId)
             thread_show_photos2.start()
@@ -656,7 +658,7 @@ def show_photos(clientId, imgPath, name):
 
     cv2.waitKey(7000) # wait a key for 7 seconds
     for ind in range(nb_img_max):
-        cv2.destroyWindow('clientId '+clientId+' - Photo '+str(ind+1))
+        cv2.destroyWindow('clientId ' + clientId + ' - Photo '+str(ind+1))
 
 """
 ==============================================================================
@@ -687,7 +689,7 @@ def re_identification(clientId, nb_time_max, name0):
         time.sleep(wait_time) # wait until after the re-identification is done
         name1 = global_var['nom'] # New result
 
-        if np.all(tb_old_name != name1) and global_var['flag_recog']:
+        if np.all(tb_old_name != name1) and (global_var['flag_recog']==1):
             print 'Essaie ' + str(nb_time+1) + ': reconnu comme ' + str(name1)
 
             resp = validate_recognition(clientId, str(name1))
@@ -701,7 +703,7 @@ def re_identification(clientId, nb_time_max, name0):
                 nb_time += 1
                 tb_old_name[nb_time] = name1
 
-        elif (not global_var['flag_recog']):
+        elif (global_var['flag_recog']==0):
             print 'Essaie ' + str(nb_time+1) + ': personne inconnue'
             result = 0
             nb_time += 1
@@ -713,9 +715,7 @@ def re_identification(clientId, nb_time_max, name0):
 
         get_face_emotion_api_results(clientId)
         time.sleep(2)
-        # global_var['text'], global_var['text2'], global_var['text3'] = go_to_formation(clientId, xls_filename, name)
         go_to_formation(clientId, xls_filename, name)
-        # return_to_recog(clientId) # Return to recognition program immediately or 20 seconds before returning
 
     else: # Two time failed to recognized
         global_var['flag_enable_recog'] = 0 # Disable recognition when two tries have failed
@@ -770,7 +770,7 @@ def run_program(clientId):
         """
         Permanent loop
         """
-        i=0
+        i=0 # Used for displaying the dialogs-loading in the template
         j=0
         while True:
 
@@ -805,7 +805,7 @@ def run_program(clientId):
 
                     else: # If the number of times recognized anyone from database is too low
                         global_var['flag_recog'] = 0 # Unknown Person
-                        global_var['nom']   = '@' # '' is for unknown person
+                        global_var['nom']   = '@' # '@' is for unknown person
                         global_var['text']  = 'Personne inconnue'
                         global_var['text2'] = ''
                         global_var['text3'] = ''
@@ -839,15 +839,14 @@ def run_program(clientId):
                     if j==0:
                         chrome_server2client(clientId, 'DONE')
                         j=1
-                    if (global_var['flag_recog']):
+                    if (global_var['flag_recog']==1):
                         if (global_var['key']==ord('y') or global_var['key']==ord('Y')): # User chooses Y to go to Formation page
                             global_var['flag_wrong_recog']  = 0
                             get_face_emotion_api_results(clientId)
+
                             time.sleep(1)
-                            # global_var['text'], global_var['text2'], global_var['text3'] = go_to_formation(clientId, xls_filename, global_var['nom'])
                             go_to_formation(clientId, xls_filename, global_var['nom'])
                             global_var['key'] = 0
-                            # return_to_recog(clientId) # Return to recognition program, after displaying Formation
 
                         if (global_var['key']==ord('n') or global_var['key']==ord('N')): # User confirms that the recognition result is wrong by choosing N
                             global_var['flag_wrong_recog'] = 1
@@ -860,9 +859,6 @@ def run_program(clientId):
                             global_var['flag_enable_recog'] = 0 # Disable recognition in order not to recognize while re-identifying or taking photos
 
                             resp_deja_photos = deja_photos(clientId) # Ask user if he has already had a database of face photos
-
-                            # if (resp_deja_photos==-1):
-                            #     global_var['flag_ask'] = 0
 
                             if (resp_deja_photos==1): # User has a database of photos
                                 # global_var['flag_enable_recog'] = 0 # Disable recognition in order not to recognize while re-identifying
@@ -881,18 +877,13 @@ def run_program(clientId):
 
                                 if (resp_allow_take_photos==1): # User allows to take photos
                                     global_var['flag_take_photo'] = 1  # Enable photo taking
-                                    #flag_enable_recog = 0 # Stop recognition while taking photos
 
                                 else: # User doesnt want to take photos
                                     global_var['flag_take_photo'] = 0
                                     res = allow_go_to_formation_by_id(clientId)
                                     if (res==1): # User agrees to go to Formation in providing his id manually
                                         name = ask_name(clientId, 1)
-                                        # global_var['text'], global_var['text2'], global_var['text3'] = go_to_formation(clientId, xls_filename, name)
                                         go_to_formation(clientId, xls_filename, name)
-
-                                        # Return to recognition program (if user wishs to, otherwise, wait 20 seconds before returning anyway)
-                                        # return_to_recog(clientId)
 
                                     else: # Quit if user refuses to provide manually his id (after all other functionalities)
                                         break
@@ -935,12 +926,12 @@ def quit_program(clientId):
     global global_vars
     global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
 
-    global_var['flag_quit'] = 0 # Turn it on to execute just the yes_no question and bye-bye
+    # global_var['flag_quit'] = 0 # Turn it on to execute just the yes_no question and bye-bye
     cv2.destroyWindow('ClientId: ' + str(clientId) + ' - Video streaming')
 
     #chrome_server2client(clientId, u"Merci de votre utilisation. Au revoir, à bientôt")
     app_pepper.pepper_tts(clientId, u"Merci de votre utilisation. Au revoir, à bientôt")
-    global_var['flag_quit'] = 1
+    # global_var['flag_quit'] = 1
 
 
 """
@@ -1158,7 +1149,7 @@ Pepper
 """
 class Pepper(object):
     def __init__(self):
-        self.ip = "10.69.128.84"
+        self.ip = "10.69.128.84" # A determiner
         self.port = 9559
         self.session = qi.Session()
         try:
@@ -1187,12 +1178,14 @@ class Pepper(object):
             data_pepper = self.ALVideoDevice.getImageRemote(self.handle)
             width, height, nbLayers = data_pepper[0:3] # from Documentation
 
+            # Old method for image reading
             image_data = np.zeros((len(data_pepper[6]),1)) # data[6]: array of height*width*nbLayes containing image data
             data_bin = b2a_hex(str(data_pepper[6]))
             for k in range(0,len(data_pepper[6])):
                 image_data[k] = int(data_bin[2*k:2*k+2], 16)
             image_reshape = np.reshape(image_data, (nbLayers, width, height), order='F')
 
+            ## New method (to be verified)
             # data_uint8 = np.fromstring(data_pepper[6], np.uint8)
             # image_reshape = np.reshape(data_uint8, (nbLayers, width, height), order='F')
 
@@ -1213,7 +1206,7 @@ class Pepper(object):
         time.sleep(timeNeeded)
 
     def pepper_show_images(self, clientId, imgName): #TODO: new function of showing images on Tablet
-        self.ALTabletService.showImage("http://"+IP_address+"/face_database/"+imgName+suffix)
+        self.ALTabletService.showImage("http://" + IP_address + "/" + imgPath + imgName + suffix)
         time.sleep(3)
         self.ALTabletService.hideImage()
 
@@ -1239,7 +1232,7 @@ imgPath      = "face_database/" # path to database of faces
 suffix       = '.png' # image file extention
 thres        = 80     # Distance threshold for recognition
 wait_time    = 2.5    # Time needed to wait for recognition
-nb_max_times = 6     # Maximum number of times of good recognition counted in 3 seconds (manually determined, and depends on camera)
+nb_max_times = 10     # Maximum number of times of good recognition counted in 3 seconds (manually determined, and depends on camera)
 nb_img_max   = 5      # Number of photos needs to be taken for each user
 xls_filename = 'formation.xls' # Excel file contains Formation information
 
