@@ -67,6 +67,9 @@ def retrieve_face_emotion_att(clientId):
     chrome_server2client(clientId, 'START')
     app_pepper.pepper_tts(clientId, 'Veuillez patienter pendant quelques secondes...')
 
+    # cv2.imwrite(global_var['frameFromHTML'], 'output.png')
+    
+    
     # Face API
     faceResult = face_api.faceDetect(None, 'output.png', None)
 
@@ -260,7 +263,7 @@ def chrome_yes_or_no(clientId, question):
 
     #chrome_server2client(clientId, question) # Ask a question
     app_pepper.pepper_tts(clientId, question) # Pepper asks a question
-    response = chrome_client2server(clientId) # Wait for an answer
+    response = chrome_client2server(clientId) # Wait for an answer from Chrome
 
     if (response == '@'):
         result, response = chrome_yes_or_no(clientId, u"Je ne vous entends pas, veuillez répéter")
@@ -268,7 +271,7 @@ def chrome_yes_or_no(clientId, question):
     if (response=='oui' or response=='non'):
         responseYesOrNo = response
     else:
-        classes = natural_language_classifier.classify('2374f9x68-nlc-1265', response)
+        classes = natural_language_classifier.classify('8a0bcex70-nlc-1679', response)
         responseYesOrNo = classes["top_class"]
 
     if not(global_var['flag_quit']):
@@ -321,11 +324,11 @@ def video_streaming(clientId):
         elif (len(faces)==1): # If there is only one face
             x0, y0, w0, h0 = faces[0]
 
-        if not global_var['flag_disable_detection']:
-            cv2.rectangle(frame, (x0, y0), (x0+w0, y0+h0), (25, 199, 247), 1) # Draw a rectangle around the biggest face
-            #cv2.rectangle(frame, (x, y), (x+w, y+h), (25, 199, 247), 1) # Draw a rectangle around the faces
-
         if (len(faces)>=1):
+            if not global_var['flag_disable_detection']:
+                cv2.rectangle(frame, (x0, y0), (x0+w0, y0+h0), (25, 199, 247), 1) # Draw a rectangle around the biggest face
+                #cv2.rectangle(frame, (x, y), (x+w, y+h), (25, 199, 247), 1) # Draw a rectangle around the faces
+
             global_var['image_save'] = gray[y0 : y0 + h0, x0 : x0 + w0]
             nbr_predicted, conf      = recognizer.predict(global_var['image_save']) # Predict function
 
@@ -337,7 +340,7 @@ def video_streaming(clientId):
                     message_xy(frame, txt, x0, y0-5, 'w', 1)
 
                     nom = ''
-                    txt = ''  
+                    txt = ''
 
                 global_var['tb_nb_times_recog'][nbr_predicted-1] = global_var['tb_nb_times_recog'][nbr_predicted-1] + 1 # Increase nb of recognize times
 
@@ -457,7 +460,7 @@ def return_to_recog(clientId):
     global_var = (item for item in global_vars if item["clientId"] == str(clientId)).next()
 
     if not global_var['flag_quit']:
-        
+
         resp_quit_formation = quit_formation(clientId)
         if (resp_quit_formation == 0):
             time.sleep(5) # wait for more 5 seconds before quitting
@@ -571,7 +574,7 @@ def retake_validate_photos(clientId, step_time, flag_show_photos, imgPath, name)
             pass
         nb = global_var['respFromHTML']
         global_var['respFromHTML'] = ""
-
+        a = [str(i) for i in range(0,nb_img_max)]
         if ('-' in nb):
             nb2 = ''
             for i in range(int(nb[0]), int(nb[2])+1):
@@ -675,7 +678,7 @@ def re_identification(clientId, nb_time_max, name0):
     global_var['text']  = ''
     global_var['text2'] = ''
     global_var['text3'] = ''
-    
+
     tb_old_name    = np.chararray(shape=(nb_time_max+1), itemsize=10) # All of the old recognition results, which are wrong
     tb_old_name[:] = ''
     tb_old_name[0] = name0
@@ -951,6 +954,7 @@ def verify_recog(clientId, name):
 
 def allow_streaming_video(clientId):
     resp = yes_or_no(clientId, 'Bonjour ! Voulez-vous lancer la reconnaissance faciale ?')
+    # resp = yes_or_no(clientId, 'Hello, how are you ?')
     return resp
 
 def deja_photos(clientId):
@@ -1110,11 +1114,9 @@ def flask_init():
             thread_pepper = Thread(target=run_app_pepper, args=(clientId,), name='pepper_'+str(clientId))
             thread_pepper.start()
 
-            cv2.destroyAllWindows()
-
             while (not flag_pepper_start):
-                time.sleep(0.5)
-                print flag_pepper_start
+                time.sleep(1)
+                print 'Pepper_start = ', flag_pepper_start
 
             # Run program
             thread_program = Thread(target = run_program, args= (clientId,), name = 'thread_prog_'+clientId)
@@ -1149,8 +1151,8 @@ Pepper
 """
 class Pepper(object):
     def __init__(self):
-        self.ip = "10.69.128.84" # A determiner
-        self.port = 9559
+        self.ip     = "169.254.16.208" # A determiner
+        self.port   = 9559
         self.session = qi.Session()
         try:
             self.session.connect("tcp://" + self.ip + ":" + str(self.port))
@@ -1161,14 +1163,13 @@ class Pepper(object):
 
         self.ALTextToSpeech = self.session.service('ALTextToSpeech')
         self.ALTextToSpeech.setLanguage('French')
-        self.ALTextToSpeech.setParameter('speed', 110)
+        self.ALTextToSpeech.setParameter('speed', 100)
 
         self.ALVideoDevice = self.session.service('ALVideoDevice')
         self.ALVideoDevice.unsubscribe("CameraTop_0")
         self.ALVideoDevice.setParameter(0, 14, 2)
         self.handle = self.ALVideoDevice.subscribeCamera("CameraTop", 0, 2, 11, 5)
-
-        self.ALTabletService = self.session.service("ALTabletService")
+        # self.ALTabletService = self.session.service("ALTabletService")
 
     def run_camera(self, clientId):
         global global_vars
@@ -1179,36 +1180,42 @@ class Pepper(object):
             width, height, nbLayers = data_pepper[0:3] # from Documentation
 
             # Old method for image reading
-            image_data = np.zeros((len(data_pepper[6]),1)) # data[6]: array of height*width*nbLayes containing image data
-            data_bin = b2a_hex(str(data_pepper[6]))
-            for k in range(0,len(data_pepper[6])):
-                image_data[k] = int(data_bin[2*k:2*k+2], 16)
-            image_reshape = np.reshape(image_data, (nbLayers, width, height), order='F')
+            # image_data = np.zeros((len(data_pepper[6]),1)) # data[6]: array of height*width*nbLayes containing image data
+            # data_bin = b2a_hex(str(data_pepper[6]))
+            # for k in range(0,len(data_pepper[6])):
+            #     image_data[k] = int(data_bin[2*k:2*k+2], 16)
+            # image_reshape = np.reshape(image_data, (nbLayers, width, height), order='F')
 
-            ## New method (to be verified)
-            # data_uint8 = np.fromstring(data_pepper[6], np.uint8)
-            # image_reshape = np.reshape(data_uint8, (nbLayers, width, height), order='F')
+            # New method
+            data_uint8 = np.fromstring(str(data_pepper[6]), np.uint8)
+            image_reshape = np.reshape(data_uint8, (nbLayers, width, height), order='F')
 
             imgRGB = np.dstack((image_reshape[2].T,image_reshape[1].T,image_reshape[0].T))
             cv2.imwrite('output.png', imgRGB)
             frame = cv2.imread('output.png')
             global_var['frameFromHTML'] = frame
+            
+            # New method (to be verified)
+            #global_var['frameFromHTML'] = imgRGB
+
+
+            if (global_var['key']==27):
+                break
 
     def pepper_tts(self, clientId, text):
-
-        self.ALTextToSpeech.say(text)
         chrome_server2client(clientId, text)
+        self.ALTextToSpeech.say(text)
 
-        # Calculate the time needed to wait, until the TTS is finished
-        text2 = str_replace_chars(text, [' ?',' !',' :',' ;'], ['?','!',':',';'])
-        nbOfWords  = len(text2.split())
-        timeNeeded = float(nbOfWords)/120*60 # Average words-per-min = 130
-        time.sleep(timeNeeded)
+        # # Calculate the time needed to wait, until the TTS is finished
+        # text2 = str_replace_chars(text, [' ?',' !',' :',' ;'], ['?','!',':',';'])
+        # nbOfWords  = len(text2.split())
+        # timeNeeded = float(nbOfWords)/100*60 # Average words-per-min = 130
+        # time.sleep(timeNeeded)
 
-    def pepper_show_images(self, clientId, imgName): #TODO: new function of showing images on Tablet
-        self.ALTabletService.showImage("http://" + IP_address + "/" + imgPath + imgName + suffix)
-        time.sleep(3)
-        self.ALTabletService.hideImage()
+    # def pepper_show_images(self, clientId, imgName): #TODO: new function of showing images on Tablet
+    #     self.ALTabletService.showImage("http://" + IP_address + "/" + imgPath + imgName + suffix)
+    #     time.sleep(3)
+    #     self.ALTabletService.hideImage()
 
 def run_app_pepper(clientId):
     global app_pepper, flag_pepper_start
@@ -1217,7 +1224,8 @@ def run_app_pepper(clientId):
     app_pepper = Pepper()
     # global_var['flag_pepper_start']= True
     flag_pepper_start = True
-    app_pepper.run_camera(clientId)
+    thread_run_camera = Thread(target=app_pepper.run_camera, args=(clientId,), name='pepper_cam_'+str(clientId))
+    thread_run_camera.start()
 
 
 """
@@ -1253,10 +1261,11 @@ print u"Apprentissage a été fini...\n"
 
 # Natural Language Classifier
 natural_language_classifier = NaturalLanguageClassifierV1(
-                              username = '82376208-a089-464c-a5da-96893ed1aa89',
-                              password = 'SEuX8ielPiiJ')
+                              username = "ee594378-5a1b-4de5-8fa8-5e975aaacd89",
+                              password = "Q01PMXvwnmhz")
 
 global_vars = []
+
 
 flask_init()
 port = int(os.getenv('PORT', '9099'))

@@ -20,12 +20,18 @@ def display_video():
             t0 = time.time()
             _data = data
             width, height, nbLayers = _data[0:3] # from Documentation
-            image_data = np.zeros((len(_data[6]),1)) # data[6]: array of height*width*nbLayes containing image data
-            data_bin = b2a_hex(str(_data[6]))
-            for k in range(0,len(_data[6])):
-                #image_data[k] = int(b2a_hex(str(_data[6])[k]), 16)
-                image_data[k] = int(data_bin[2*k:2*k+2], 16)
-            image_reshape = np.reshape(image_data, (nbLayers, width, height), order='F')
+            # image_data = np.zeros((len(_data[6]),1)) # data[6]: array of height*width*nbLayes containing image data
+            # data_bin = b2a_hex(str(_data[6]))
+            # for k in range(0,len(_data[6])):
+            #     #image_data[k] = int(b2a_hex(str(_data[6])[k]), 16)
+            #     image_data[k] = int(data_bin[2*k:2*k+2], 16)
+            #
+            # image_reshape = np.reshape(image_data, (nbLayers, width, height), order='F')
+
+
+            data_uint8 = np.fromstring(str(_data[6]), np.uint8)
+            image_reshape = np.reshape(data_uint8, (nbLayers, width, height), order='F')
+
             imgRGB = np.dstack((image_reshape[2],image_reshape[1],image_reshape[0]))
             cv2.imwrite('output.png', imgRGB)
             frame = cv2.imread('output.png')
@@ -39,7 +45,7 @@ def display_video():
 class App(object):
     def __init__(self):
 
-        self.ip = "10.69.128.84"
+        self.ip = "169.254.16.208"
         self.port = 9559
 
         self.session = qi.Session()
@@ -51,32 +57,32 @@ class App(object):
                     "Please check your script arguments. Run with -h option for help.")
             sys.exit(1)
 
-        # self.ALVideoDevice = self.session.service('ALVideoDevice')
+        self.ALVideoDevice = self.session.service('ALVideoDevice')
 
-        # self.ALVideoDevice.unsubscribe("CameraTop_0")
-        # self.ALVideoDevice.setParameter(0, 14, 1)
-        # self.handle = self.ALVideoDevice.subscribeCamera("CameraTop", 0, 1, 11, 5)
+        self.ALVideoDevice.unsubscribe("CameraTop_0")
+        self.ALVideoDevice.setParameter(0, 14, 1)
+        self.handle = self.ALVideoDevice.subscribeCamera("CameraTop", 0, 1, 11, 5)
 
-        self.ALTabletService = self.session.service("ALTabletService")
+        # self.ALTabletService = self.session.service("ALTabletService")
 
 
     def run(self):
-        # global data
+        global data
 
-        # thread_video = Thread(target=display_video)
-        # thread_video.start()
-        # while True:
-        #     self.ALVideoDevice.releaseImage(self.handle)
-        #     #print(self.ALVideoDevice.getImageRemote(self.handle))
-        #     data = self.ALVideoDevice.getImageRemote(self.handle)
-            
-        self.show_images()
+        thread_video = Thread(target=display_video)
+        thread_video.start()
+        while True:
+            self.ALVideoDevice.releaseImage(self.handle)
+            #print(self.ALVideoDevice.getImageRemote(self.handle))
+            data = self.ALVideoDevice.getImageRemote(self.handle)
 
-    def show_images(self):
-        self.ALTabletService.showImage('http://192.18.0.1/img/milky-way-galaxy-wallpaper-hd.jpg')
-        time.sleep(30)
-        # Hide the web view
-        self.ALTabletService.hideImage()
+        # self.show_images()
+
+    # def show_images(self):
+        # self.ALTabletService.showImage('http://192.18.0.1/img/milky-way-galaxy-wallpaper-hd.jpg')
+        # time.sleep(30)
+        # # Hide the web view
+        # self.ALTabletService.hideImage()
 
 data = None
 

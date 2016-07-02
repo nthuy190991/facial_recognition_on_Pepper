@@ -29,5 +29,7 @@
         <File name="huy.0" src="huy.0.png" />
     </Resources>
     <Topics />
-    <IgnoredPaths />
+    <IgnoredPaths>
+        <Path src=".metadata" />
+    </IgnoredPaths>
 </Package>

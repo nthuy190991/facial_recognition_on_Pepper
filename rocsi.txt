@@ -1,0 +1,4 @@
+Name: nao
+Password: rocsi2016
+IP: 192.168.43.125
+MAC
